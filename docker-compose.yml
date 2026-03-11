@@ -4,8 +4,21 @@ services:
     environment:
       HOME: /home/node
       TERM: xterm-256color
+      NODE_OPTIONS: ${NODE_OPTIONS:---use-openssl-ca}
       OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:-}
       OPENCLAW_ALLOW_INSECURE_PRIVATE_WS: ${OPENCLAW_ALLOW_INSECURE_PRIVATE_WS:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      BRAVE_API_KEY: ${BRAVE_API_KEY:-}
+      KIMI_API_KEY: ${KIMI_API_KEY:-}
+      MOONSHOT_API_KEY: ${MOONSHOT_API_KEY:-}
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      ALL_PROXY: ${ALL_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1}
+      http_proxy: ${HTTP_PROXY:-}
+      https_proxy: ${HTTPS_PROXY:-}
+      all_proxy: ${ALL_PROXY:-}
+      no_proxy: ${NO_PROXY:-localhost,127.0.0.1}
       CLAUDE_AI_SESSION_KEY: ${CLAUDE_AI_SESSION_KEY:-}
       CLAUDE_WEB_SESSION_KEY: ${CLAUDE_WEB_SESSION_KEY:-}
       CLAUDE_WEB_COOKIE: ${CLAUDE_WEB_COOKIE:-}
@@ -25,6 +38,8 @@ services:
       - "${OPENCLAW_BRIDGE_PORT:-18790}:18790"
     init: true
     restart: unless-stopped
+    depends_on:
+      - openclaw-cdp-proxy
     command:
       [
         "node",
@@ -48,6 +63,23 @@ services:
       retries: 5
       start_period: 20s
 
+  openclaw-cdp-proxy:
+    image: ${OPENCLAW_IMAGE:-openclaw:local}
+    environment:
+      NODE_OPTIONS: ${NODE_OPTIONS:---use-openssl-ca}
+      CDP_PROXY_BIND_HOST: 0.0.0.0
+      CDP_PROXY_BIND_PORT: 9233
+      CDP_PROXY_TARGET_HOST: host.docker.internal
+      CDP_PROXY_TARGET_PORT: 9222
+      CDP_PROXY_TARGET_HOST_HEADER: 127.0.0.1:9222
+    volumes:
+      - ./scripts/cdp-host-proxy.mjs:/app/scripts/cdp-host-proxy.mjs:ro
+    command: ["node", "/app/scripts/cdp-host-proxy.mjs"]
+    init: true
+    healthcheck:
+      disable: true
+    restart: unless-stopped
+
   openclaw-cli:
     image: ${OPENCLAW_IMAGE:-openclaw:local}
     network_mode: "service:openclaw-gateway"
@@ -59,8 +91,21 @@ services:
     environment:
       HOME: /home/node
       TERM: xterm-256color
+      NODE_OPTIONS: ${NODE_OPTIONS:---use-openssl-ca}
       OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:-}
       OPENCLAW_ALLOW_INSECURE_PRIVATE_WS: ${OPENCLAW_ALLOW_INSECURE_PRIVATE_WS:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      BRAVE_API_KEY: ${BRAVE_API_KEY:-}
+      KIMI_API_KEY: ${KIMI_API_KEY:-}
+      MOONSHOT_API_KEY: ${MOONSHOT_API_KEY:-}
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      ALL_PROXY: ${ALL_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1}
+      http_proxy: ${HTTP_PROXY:-}
+      https_proxy: ${HTTPS_PROXY:-}
+      all_proxy: ${ALL_PROXY:-}
+      no_proxy: ${NO_PROXY:-localhost,127.0.0.1}
       BROWSER: echo
       CLAUDE_AI_SESSION_KEY: ${CLAUDE_AI_SESSION_KEY:-}
       CLAUDE_WEB_SESSION_KEY: ${CLAUDE_WEB_SESSION_KEY:-}

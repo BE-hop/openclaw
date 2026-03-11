@@ -99,6 +99,10 @@
           - "src/web/**"
           - "extensions/whatsapp/**"
           - "docs/channels/whatsapp.md"
+"channel: wechat-official":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "extensions/wechat-official/**"
 "channel: zalo":
   - changed-files:
       - any-glob-to-any-file:
