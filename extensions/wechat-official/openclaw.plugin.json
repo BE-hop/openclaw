@@ -1,0 +1,9 @@
+{
+  "id": "wechat-official",
+  "channels": ["wechat-official"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

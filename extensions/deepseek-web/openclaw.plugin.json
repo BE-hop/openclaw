@@ -1,0 +1,77 @@
+{
+  "id": "deepseek-web",
+  "name": "DeepSeek Web",
+  "description": "Drive a logged-in DeepSeek web tab (send/wait/fetch) and optionally poll in background.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "profile": {
+        "type": "string",
+        "description": "Browser profile used by OpenClaw browser tool (for extension relay use chrome)."
+      },
+      "urlMatch": {
+        "type": "string",
+        "description": "Substring used to locate the target chat tab URL."
+      },
+      "openUrl": {
+        "type": "string",
+        "description": "URL opened when no matching tab is found."
+      },
+      "autoWatch": {
+        "type": "boolean",
+        "description": "Enable background polling by default."
+      },
+      "pollIntervalMs": {
+        "type": "number",
+        "description": "Background poll interval in milliseconds."
+      },
+      "sendWaitMs": {
+        "type": "number",
+        "description": "Default wait time after /deepseek ask before fetching latest content."
+      },
+      "maxWindowMessages": {
+        "type": "number",
+        "description": "Max messages kept from the latest page snapshot."
+      },
+      "maxEventMessages": {
+        "type": "number",
+        "description": "Max newly-captured messages retained in local plugin state."
+      },
+      "inputSelector": {
+        "type": "string",
+        "description": "CSS selector for chat input element."
+      },
+      "sendButtonSelector": {
+        "type": "string",
+        "description": "CSS selector for send button."
+      },
+      "messageSelector": {
+        "type": "string",
+        "description": "CSS selector for generic message nodes."
+      },
+      "userSelector": {
+        "type": "string",
+        "description": "Optional CSS selector for user messages."
+      },
+      "assistantSelector": {
+        "type": "string",
+        "description": "Optional CSS selector for assistant messages."
+      }
+    }
+  },
+  "uiHints": {
+    "profile": {
+      "label": "Browser profile",
+      "help": "Use chrome when controlling your existing logged-in browser tab via the extension relay."
+    },
+    "urlMatch": {
+      "label": "Target URL Match",
+      "help": "Example: chat.deepseek.com"
+    },
+    "openUrl": {
+      "label": "Open URL",
+      "help": "Opened automatically when no matching tab is found."
+    }
+  }
+}

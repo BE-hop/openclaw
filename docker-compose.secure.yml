@@ -1,0 +1,37 @@
+services:
+  openclaw-cdp-proxy:
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/tmp
+      - /run
+    pids_limit: 128
+
+  openclaw-gateway:
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/tmp
+      - /run
+    pids_limit: 256
+
+  openclaw-cli:
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/tmp
+      - /run
+    pids_limit: 256

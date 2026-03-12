@@ -1,0 +1,12 @@
+{
+  "name": "@openclaw/deepseek-web",
+  "version": "2026.3.12",
+  "private": true,
+  "description": "Browser-driven DeepSeek page bridge for OpenClaw",
+  "type": "module",
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}
