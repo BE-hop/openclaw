@@ -12,7 +12,10 @@ import {
   type PluginRuntime,
 } from "openclaw/plugin-sdk/compat";
 import { resolveWechatOfficialAccount } from "./accounts.js";
-import { maybeHandleWechatDeepseekBridgeInbound } from "./deepseek-bridge.js";
+import {
+  maybeHandleWechatChatgptBridgeInbound,
+  maybeHandleWechatDeepseekBridgeInbound,
+} from "./deepseek-bridge.js";
 import {
   WECHAT_OFFICIAL_CHANNEL_ID,
   type ResolvedWechatOfficialAccount,
@@ -233,6 +236,30 @@ async function processInboundMessage(params: {
     runtime.channel.commands.isControlCommandMessage(rawBody, cfg) &&
     commandAuthorized !== true
   ) {
+    return;
+  }
+
+  const chatgptHandled = await maybeHandleWechatChatgptBridgeInbound({
+    message,
+    rawBody,
+    senderId,
+    account,
+    cfg,
+    runtime,
+    deliverReply: async (text) => {
+      await deliverWechatReply({
+        payload: { text },
+        runtime,
+        cfg,
+        account,
+        toUser: senderId,
+        statusSink,
+      });
+    },
+    log,
+  });
+
+  if (chatgptHandled.handled) {
     return;
   }
 

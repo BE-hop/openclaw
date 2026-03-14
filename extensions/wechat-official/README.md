@@ -10,6 +10,7 @@ Connect OpenClaw to a WeChat Official Account (公众号) using developer-mode w
 - DM access policy support: `pairing | allowlist | open | disabled`
 - Asynchronous auto-reply via WeChat custom service API
 - Optional DeepSeek web async bridge with command-triggered background tasks
+- Optional ChatGPT web async bridge with command-triggered background tasks
 
 ## Install
 
@@ -72,6 +73,34 @@ Behavior:
 - Task results are stored and can be fetched later by command.
 - Browser polling interval is controlled in the 5-10 second range by default to reduce risk of aggressive scraping patterns.
 - The bridge reuses one DeepSeek conversation and opens a new conversation every 10 tasks.
+
+## ChatGPT web async bridge (optional)
+
+```json5
+{
+  channels: {
+    "wechat-official": {
+      enabled: true,
+      // ...wechat required fields
+      chatgptBridge: {
+        enabled: true,
+        commandPrefix: "gpt",
+        browserProfile: "chrome",
+        openUrl: "https://chatgpt.com/",
+        pollIntervalMs: 7000,
+        maxWaitMs: 300000,
+        thinkingReply: "已收到，ChatGPT 正在思考中。请稍后发送“gptback”获取结果。",
+      },
+    },
+  },
+}
+```
+
+Command flow:
+
+- Any text containing `gpt`: enqueue a ChatGPT task in the current conversation.
+- Any text containing `gptnew`: enqueue a ChatGPT task in a new conversation.
+- `gptback [任务ID]`: fetch result quickly; if still running, returns progress status.
 
 ## Environment variables (default account)
 

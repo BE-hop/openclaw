@@ -14,6 +14,18 @@ const WechatDeepseekBridgeSchema = z
   })
   .passthrough();
 
+const WechatChatgptBridgeSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    commandPrefix: z.string().optional(),
+    browserProfile: z.string().optional(),
+    openUrl: z.string().optional(),
+    pollIntervalMs: z.number().int().min(5000).max(10000).optional(),
+    maxWaitMs: z.number().int().min(10_000).max(900_000).optional(),
+    thinkingReply: z.string().optional(),
+  })
+  .passthrough();
+
 const WechatOfficialAccountSchema = z
   .object({
     name: z.string().optional(),
@@ -27,6 +39,7 @@ const WechatOfficialAccountSchema = z
     allowFrom: z.array(z.string()).optional(),
     textChunkLimit: z.number().int().min(100).max(2000).optional(),
     deepseekBridge: WechatDeepseekBridgeSchema.optional(),
+    chatgptBridge: WechatChatgptBridgeSchema.optional(),
   })
   .passthrough();
 
@@ -43,6 +56,7 @@ export const WechatOfficialConfigSchema = z
     allowFrom: z.array(z.string()).optional(),
     textChunkLimit: z.number().int().min(100).max(2000).optional(),
     deepseekBridge: WechatDeepseekBridgeSchema.optional(),
+    chatgptBridge: WechatChatgptBridgeSchema.optional(),
     defaultAccount: z.string().optional(),
     accounts: z.record(z.string(), WechatOfficialAccountSchema).optional(),
   })

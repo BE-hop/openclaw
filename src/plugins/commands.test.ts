@@ -3,6 +3,7 @@ import {
   clearPluginCommands,
   getPluginCommandSpecs,
   listPluginCommands,
+  matchPluginCommand,
   registerPluginCommand,
 } from "./commands.js";
 
@@ -93,5 +94,56 @@ describe("registerPluginCommand", () => {
         acceptsArgs: false,
       },
     ]);
+  });
+
+  it("matches plain-text aliases with prefix mode", () => {
+    const result = registerPluginCommand("demo-plugin", {
+      name: "dsback",
+      description: "Fetch DeepSeek result",
+      acceptsArgs: true,
+      textAliases: ["dsback"],
+      handler: async () => ({ text: "ok" }),
+    });
+    expect(result).toEqual({ ok: true });
+
+    const matched = matchPluginCommand("dsback task-123");
+    expect(matched?.command.name).toBe("dsback");
+    expect(matched?.args).toBe("task-123");
+  });
+
+  it("matches plain-text aliases with contains mode and strips alias token", () => {
+    const result = registerPluginCommand("demo-plugin", {
+      name: "ds",
+      description: "Queue DeepSeek ask",
+      acceptsArgs: true,
+      textAliases: ["ds"],
+      textAliasMatch: "contains",
+      handler: async () => ({ text: "ok" }),
+    });
+    expect(result).toEqual({ ok: true });
+
+    const matched = matchPluginCommand("请你 ds 帮我总结这篇文章");
+    expect(matched?.command.name).toBe("ds");
+    expect(matched?.args).toBe("请你 帮我总结这篇文章");
+    expect(matchPluginCommand("ads campaign")).toBeNull();
+  });
+
+  it("rejects duplicate text aliases across plugin commands", () => {
+    const first = registerPluginCommand("plugin-a", {
+      name: "ds",
+      description: "DeepSeek",
+      textAliases: ["ds"],
+      handler: async () => ({ text: "ok" }),
+    });
+    expect(first).toEqual({ ok: true });
+
+    const second = registerPluginCommand("plugin-b", {
+      name: "other",
+      description: "Other",
+      textAliases: ["ds"],
+      handler: async () => ({ text: "ok" }),
+    });
+    expect(second.ok).toBe(false);
+    expect(second.error).toContain('Text alias "ds" already registered');
   });
 });

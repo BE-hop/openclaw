@@ -13,8 +13,12 @@ import type {
   PluginCommandResult,
 } from "./types.js";
 
+type TextAliasMatchMode = "prefix" | "contains";
+
 type RegisteredPluginCommand = OpenClawPluginCommandDefinition & {
   pluginId: string;
+  textAliases: string[];
+  textAliasMatch: TextAliasMatchMode;
 };
 
 // Registry of plugin commands
@@ -96,6 +100,21 @@ export function validateCommandName(name: string): string | null {
   return null;
 }
 
+function normalizeTextAlias(value: string): string | null {
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed) {
+    return null;
+  }
+  const withoutSlash = trimmed.startsWith("/") ? trimmed.slice(1).trim() : trimmed;
+  if (!withoutSlash) {
+    return null;
+  }
+  if (!/^[a-z][a-z0-9_-]*$/.test(withoutSlash)) {
+    return null;
+  }
+  return withoutSlash;
+}
+
 export type CommandRegistrationResult = {
   ok: boolean;
   error?: string;
@@ -137,6 +156,41 @@ export function registerPluginCommand(
     return { ok: false, error: validationError };
   }
 
+  const textAliasMatchModeRaw = command.textAliasMatch?.trim().toLowerCase();
+  const textAliasMatch: TextAliasMatchMode =
+    textAliasMatchModeRaw === "contains" ? "contains" : "prefix";
+  if (
+    textAliasMatchModeRaw &&
+    textAliasMatchModeRaw !== "prefix" &&
+    textAliasMatchModeRaw !== "contains"
+  ) {
+    return {
+      ok: false,
+      error: `textAliasMatch must be "prefix" or "contains" (received "${command.textAliasMatch}")`,
+    };
+  }
+
+  const textAliases: string[] = [];
+  for (const rawAlias of command.textAliases ?? []) {
+    if (typeof rawAlias !== "string") {
+      return { ok: false, error: "textAliases entries must be strings" };
+    }
+    const normalizedAlias = normalizeTextAlias(rawAlias);
+    if (!normalizedAlias) {
+      return {
+        ok: false,
+        error: `Invalid text alias "${rawAlias}". Use letters/numbers/_/- and start with a letter.`,
+      };
+    }
+    const aliasValidationError = validateCommandName(normalizedAlias);
+    if (aliasValidationError) {
+      return { ok: false, error: `Invalid text alias "${rawAlias}": ${aliasValidationError}` };
+    }
+    if (!textAliases.includes(normalizedAlias)) {
+      textAliases.push(normalizedAlias);
+    }
+  }
+
   const key = `/${name.toLowerCase()}`;
 
   // Check for duplicate registration
@@ -148,7 +202,28 @@ export function registerPluginCommand(
     };
   }
 
-  pluginCommands.set(key, { ...command, name, description, pluginId });
+  for (const alias of textAliases) {
+    const existingAliasOwner = Array.from(pluginCommands.values()).find((entry) =>
+      entry.textAliases.includes(alias),
+    );
+    if (existingAliasOwner) {
+      return {
+        ok: false,
+        error: `Text alias "${alias}" already registered by plugin "${existingAliasOwner.pluginId}" (/${existingAliasOwner.name})`,
+      };
+    }
+  }
+
+  const normalizedCommand: RegisteredPluginCommand = {
+    ...command,
+    name,
+    description,
+    pluginId,
+    textAliases,
+    textAliasMatch,
+  };
+
+  pluginCommands.set(key, normalizedCommand);
   logVerbose(`Registered plugin command: ${key} (plugin: ${pluginId})`);
   return { ok: true };
 }
@@ -180,32 +255,141 @@ export function clearPluginCommandsForPlugin(pluginId: string): void {
  * the command will not match. This allows the message to fall through to
  * built-in handlers or the agent. Document this behavior to plugin authors.
  */
-export function matchPluginCommand(
-  commandBody: string,
+function isTextAliasTokenChar(char: string | undefined): boolean {
+  if (!char) {
+    return false;
+  }
+  const code = char.charCodeAt(0);
+  return (
+    (code >= 48 && code <= 57) || // 0-9
+    (code >= 65 && code <= 90) || // A-Z
+    (code >= 97 && code <= 122) || // a-z
+    code === 95
+  ); // _
+}
+
+function findTokenAliasIndex(textLower: string, alias: string): number {
+  let start = 0;
+  while (start <= textLower.length - alias.length) {
+    const idx = textLower.indexOf(alias, start);
+    if (idx < 0) {
+      return -1;
+    }
+    const before = idx > 0 ? textLower[idx - 1] : undefined;
+    const after = idx + alias.length < textLower.length ? textLower[idx + alias.length] : undefined;
+    if (!isTextAliasTokenChar(before) && !isTextAliasTokenChar(after)) {
+      return idx;
+    }
+    start = idx + alias.length;
+  }
+  return -1;
+}
+
+function matchSlashPluginCommand(
+  trimmed: string,
 ): { command: RegisteredPluginCommand; args?: string } | null {
-  const trimmed = commandBody.trim();
   if (!trimmed.startsWith("/")) {
     return null;
   }
 
-  // Extract command name and args
   const spaceIndex = trimmed.indexOf(" ");
   const commandName = spaceIndex === -1 ? trimmed : trimmed.slice(0, spaceIndex);
   const args = spaceIndex === -1 ? undefined : trimmed.slice(spaceIndex + 1).trim();
 
   const key = commandName.toLowerCase();
   const command = pluginCommands.get(key);
-
   if (!command) {
     return null;
   }
-
-  // If command doesn't accept args but args were provided, don't match
   if (args && !command.acceptsArgs) {
     return null;
   }
-
   return { command, args: args || undefined };
+}
+
+function matchTextAliasPluginCommand(
+  trimmed: string,
+): { command: RegisteredPluginCommand; args?: string } | null {
+  const text = trimmed.trim();
+  if (!text || text.startsWith("/")) {
+    return null;
+  }
+
+  const textLower = text.toLowerCase();
+  type Candidate = { command: RegisteredPluginCommand; args?: string; score: number };
+  let best: Candidate | null = null;
+
+  for (const command of pluginCommands.values()) {
+    if (command.textAliases.length === 0) {
+      continue;
+    }
+    for (const alias of command.textAliases) {
+      if (command.textAliasMatch === "contains") {
+        const idx = findTokenAliasIndex(textLower, alias);
+        if (idx < 0) {
+          continue;
+        }
+        const before = text.slice(0, idx).trim();
+        const after = text.slice(idx + alias.length).trim();
+        const combined = [before, after].filter(Boolean).join(" ").trim();
+        const args = combined || undefined;
+        if (args && !command.acceptsArgs) {
+          continue;
+        }
+        const candidate: Candidate = {
+          command,
+          args,
+          score: 100 + alias.length,
+        };
+        if (!best || candidate.score > best.score) {
+          best = candidate;
+        }
+        continue;
+      }
+
+      if (textLower === alias) {
+        const candidate: Candidate = {
+          command,
+          score: 400 + alias.length,
+        };
+        if (!best || candidate.score > best.score) {
+          best = candidate;
+        }
+        continue;
+      }
+      if (!textLower.startsWith(alias)) {
+        continue;
+      }
+      const nextChar = text.charAt(alias.length);
+      if (nextChar && !/\s/.test(nextChar)) {
+        continue;
+      }
+      const args = text.slice(alias.length).trim() || undefined;
+      if (args && !command.acceptsArgs) {
+        continue;
+      }
+      const candidate: Candidate = {
+        command,
+        args,
+        score: 300 + alias.length,
+      };
+      if (!best || candidate.score > best.score) {
+        best = candidate;
+      }
+    }
+  }
+
+  return best ? { command: best.command, args: best.args } : null;
+}
+
+export function matchPluginCommand(
+  commandBody: string,
+): { command: RegisteredPluginCommand; args?: string } | null {
+  const trimmed = commandBody.trim();
+  if (!trimmed) {
+    return null;
+  }
+  return matchSlashPluginCommand(trimmed) ?? matchTextAliasPluginCommand(trimmed);
 }
 
 /**

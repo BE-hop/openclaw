@@ -14,6 +14,16 @@ export type WechatDeepseekBridgeConfig = {
   thinkingReply?: string;
 };
 
+export type WechatChatgptBridgeConfig = {
+  enabled?: boolean;
+  commandPrefix?: string;
+  browserProfile?: string;
+  openUrl?: string;
+  pollIntervalMs?: number;
+  maxWaitMs?: number;
+  thinkingReply?: string;
+};
+
 export type WechatOfficialAccountConfig = {
   name?: string;
   enabled?: boolean;
@@ -26,6 +36,7 @@ export type WechatOfficialAccountConfig = {
   allowFrom?: string[];
   textChunkLimit?: number;
   deepseekBridge?: WechatDeepseekBridgeConfig;
+  chatgptBridge?: WechatChatgptBridgeConfig;
 };
 
 export type WechatOfficialConfig = WechatOfficialAccountConfig & {
@@ -46,6 +57,15 @@ export type ResolvedWechatOfficialAccount = {
   allowFrom: string[];
   textChunkLimit: number;
   deepseekBridge: {
+    enabled: boolean;
+    commandPrefix: string;
+    browserProfile: string;
+    openUrl: string;
+    pollIntervalMs: number;
+    maxWaitMs: number;
+    thinkingReply: string;
+  };
+  chatgptBridge: {
     enabled: boolean;
     commandPrefix: string;
     browserProfile: string;

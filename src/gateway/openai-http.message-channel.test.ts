@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { clearPluginCommandsForPlugin, registerPluginCommand } from "../plugins/commands.js";
 import { agentCommand, installGatewayTestHooks, withGatewayServer } from "./test-helpers.js";
 
 installGatewayTestHooks({ scope: "test" });
@@ -55,5 +56,49 @@ describe("OpenAI HTTP message channel", () => {
   it("defaults messageChannel to webchat when header is absent", async () => {
     const firstCall = await runOpenAiMessageChannelRequest();
     expect(firstCall?.messageChannel).toBe("webchat");
+  });
+
+  it("routes text-alias plugin commands before agent dispatch", async () => {
+    const pluginId = "openai-http-test-plugin";
+    clearPluginCommandsForPlugin(pluginId);
+    const registered = registerPluginCommand(pluginId, {
+      name: "bridge-e2e",
+      description: "test command",
+      acceptsArgs: true,
+      textAliases: ["dsopenai"],
+      textAliasMatch: "contains",
+      requireAuth: false,
+      handler: async (ctx) => ({ text: `bridge:${ctx.args ?? ""}` }),
+    });
+    expect(registered.ok).toBe(true);
+
+    try {
+      agentCommand.mockReset();
+      await withGatewayServer(
+        async ({ port }) => {
+          const res = await fetch(`http://127.0.0.1:${port}/v1/chat/completions`, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              authorization: "Bearer secret",
+            },
+            body: JSON.stringify({
+              model: "openclaw",
+              messages: [{ role: "user", content: "please dsopenai now" }],
+            }),
+          });
+
+          expect(res.status).toBe(200);
+          expect(agentCommand).toHaveBeenCalledTimes(0);
+          const json = (await res.json()) as {
+            choices?: Array<{ message?: { content?: string } }>;
+          };
+          expect(json.choices?.[0]?.message?.content).toBe("bridge:please now");
+        },
+        { serverOptions: OPENAI_SERVER_OPTIONS },
+      );
+    } finally {
+      clearPluginCommandsForPlugin(pluginId);
+    }
   });
 });

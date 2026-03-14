@@ -27,12 +27,20 @@ const ENV_WEBHOOK_PATH = "WECHAT_OFFICIAL_WEBHOOK_PATH";
 const ENV_DM_POLICY = "WECHAT_OFFICIAL_DM_POLICY";
 const ENV_ALLOW_FROM = "WECHAT_OFFICIAL_ALLOW_FROM";
 const ENV_TEXT_CHUNK_LIMIT = "WECHAT_OFFICIAL_TEXT_CHUNK_LIMIT";
+
 const DEFAULT_DEEPSEEK_COMMAND_PREFIX = "ds";
 const DEFAULT_DEEPSEEK_PROFILE = "chrome";
 const DEFAULT_DEEPSEEK_OPEN_URL = "https://chat.deepseek.com/";
 const DEFAULT_DEEPSEEK_POLL_INTERVAL_MS = 7_000;
 const DEFAULT_DEEPSEEK_MAX_WAIT_MS = 300_000;
 const DEFAULT_DEEPSEEK_THINKING_REPLY = "已收到，DeepSeek 正在思考中。请稍后发送“dsback”获取结果。";
+
+const DEFAULT_CHATGPT_COMMAND_PREFIX = "gpt";
+const DEFAULT_CHATGPT_PROFILE = "chrome";
+const DEFAULT_CHATGPT_OPEN_URL = "https://chatgpt.com/";
+const DEFAULT_CHATGPT_POLL_INTERVAL_MS = 7_000;
+const DEFAULT_CHATGPT_MAX_WAIT_MS = 300_000;
+const DEFAULT_CHATGPT_THINKING_REPLY = "已收到，ChatGPT 正在思考中。请稍后发送“gptback”获取结果。";
 
 function readChannelConfig(cfg: OpenClawConfig): WechatOfficialConfig {
   return (cfg.channels?.[WECHAT_OFFICIAL_CHANNEL_ID] ?? {}) as WechatOfficialConfig;
@@ -102,7 +110,7 @@ function clampRange(raw: number | undefined, fallback: number, min: number, max:
   return Math.max(min, Math.min(max, Math.floor(raw)));
 }
 
-function parseDeepseekBridgeConfig(raw: unknown): {
+function parseWebBridgeConfig(raw: unknown): {
   enabled?: boolean;
   commandPrefix?: string;
   browserProfile?: string;
@@ -151,9 +159,12 @@ export function resolveWechatOfficialAccount(params: {
   const accountId = normalizeAccountId(params.accountId);
   const channel = readChannelConfig(params.cfg);
   const accountOverride = resolveAccountOverride(channel, accountId);
-  const channelDeepseekBridge = parseDeepseekBridgeConfig(channel.deepseekBridge);
-  const accountDeepseekBridge = parseDeepseekBridgeConfig(accountOverride.deepseekBridge);
+  const channelDeepseekBridge = parseWebBridgeConfig(channel.deepseekBridge);
+  const accountDeepseekBridge = parseWebBridgeConfig(accountOverride.deepseekBridge);
   const mergedDeepseekBridge = { ...channelDeepseekBridge, ...accountDeepseekBridge };
+  const channelChatgptBridge = parseWebBridgeConfig(channel.chatgptBridge);
+  const accountChatgptBridge = parseWebBridgeConfig(accountOverride.chatgptBridge);
+  const mergedChatgptBridge = { ...channelChatgptBridge, ...accountChatgptBridge };
 
   const merged = {
     ...channel,
@@ -221,6 +232,25 @@ export function resolveWechatOfficialAccount(params: {
         900_000,
       ),
       thinkingReply: mergedDeepseekBridge.thinkingReply ?? DEFAULT_DEEPSEEK_THINKING_REPLY,
+    },
+    chatgptBridge: {
+      enabled: mergedChatgptBridge.enabled === true,
+      commandPrefix: mergedChatgptBridge.commandPrefix ?? DEFAULT_CHATGPT_COMMAND_PREFIX,
+      browserProfile: mergedChatgptBridge.browserProfile ?? DEFAULT_CHATGPT_PROFILE,
+      openUrl: mergedChatgptBridge.openUrl ?? DEFAULT_CHATGPT_OPEN_URL,
+      pollIntervalMs: clampRange(
+        mergedChatgptBridge.pollIntervalMs,
+        DEFAULT_CHATGPT_POLL_INTERVAL_MS,
+        5_000,
+        10_000,
+      ),
+      maxWaitMs: clampRange(
+        mergedChatgptBridge.maxWaitMs,
+        DEFAULT_CHATGPT_MAX_WAIT_MS,
+        10_000,
+        900_000,
+      ),
+      thinkingReply: mergedChatgptBridge.thinkingReply ?? DEFAULT_CHATGPT_THINKING_REPLY,
     },
   };
 }

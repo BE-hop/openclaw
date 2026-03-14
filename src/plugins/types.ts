@@ -196,6 +196,18 @@ export type OpenClawPluginCommandDefinition = {
   description: string;
   /** Whether this command accepts arguments */
   acceptsArgs?: boolean;
+  /**
+   * Optional plain-text aliases without a leading slash (for example ["ds"]).
+   * These are matched before agent invocation so senders can trigger plugin commands
+   * using natural text messages in channels that do not use slash commands.
+   */
+  textAliases?: string[];
+  /**
+   * How text aliases are matched.
+   * - "prefix" (default): `alias ...`
+   * - "contains": message contains alias token; alias is removed from args payload
+   */
+  textAliasMatch?: "prefix" | "contains";
   /** Whether only authorized senders can use this command (default: true) */
   requireAuth?: boolean;
   /** The handler function */

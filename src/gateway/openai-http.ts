@@ -3,6 +3,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { createDefaultDeps } from "../cli/deps.js";
 import { agentCommandFromIngress } from "../commands/agent.js";
 import type { ImageContent } from "../commands/agent/types.js";
+import { loadConfig } from "../config/config.js";
 import type { GatewayHttpChatCompletionsConfig } from "../config/types.gateway.js";
 import { emitAgentEvent, onAgentEvent } from "../infra/agent-events.js";
 import { logWarn } from "../logger.js";
@@ -17,6 +18,7 @@ import {
   type InputImageLimits,
   type InputImageSource,
 } from "../media/input-files.js";
+import { executePluginCommand, matchPluginCommand } from "../plugins/commands.js";
 import { defaultRuntime } from "../runtime.js";
 import { resolveAssistantStreamDeltaText } from "./agent-event-assistant-text.js";
 import {
@@ -393,6 +395,56 @@ function coerceRequest(val: unknown): OpenAiChatCompletionRequest {
   return val as OpenAiChatCompletionRequest;
 }
 
+function extractLatestUserMessageText(messagesUnknown: unknown): string {
+  const messages = asMessages(messagesUnknown);
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const msg = messages[i];
+    if (!msg || typeof msg !== "object") {
+      continue;
+    }
+    const role = typeof msg.role === "string" ? msg.role.trim().toLowerCase() : "";
+    if (role !== "user") {
+      continue;
+    }
+    const content = extractTextContent(msg.content).trim();
+    if (content) {
+      return content;
+    }
+  }
+  return "";
+}
+
+async function maybeHandlePluginCommand(params: {
+  messagesUnknown: unknown;
+  messageChannel: string;
+  user?: string;
+}): Promise<string | null> {
+  const commandBody = extractLatestUserMessageText(params.messagesUnknown);
+  if (!commandBody) {
+    return null;
+  }
+
+  const match = matchPluginCommand(commandBody);
+  if (!match) {
+    return null;
+  }
+
+  const result = await executePluginCommand({
+    command: match.command,
+    args: match.args,
+    senderId: params.user,
+    channel: params.messageChannel,
+    isAuthorizedSender: true,
+    commandBody,
+    config: loadConfig(),
+    from: params.user,
+    to: params.user,
+  });
+
+  const text = typeof result.text === "string" ? result.text.trim() : "";
+  return text || "Command completed.";
+}
+
 function resolveAgentResponseText(result: unknown): string {
   const payloads = (result as { payloads?: Array<{ text?: string }> } | null)?.payloads;
   if (!Array.isArray(payloads) || payloads.length === 0) {
@@ -477,6 +529,48 @@ export async function handleOpenAiHttpRequest(
     runId,
     messageChannel,
   });
+
+  let pluginCommandText: string | null = null;
+  try {
+    pluginCommandText = await maybeHandlePluginCommand({
+      messagesUnknown: payload.messages,
+      messageChannel,
+      user,
+    });
+  } catch (err) {
+    logWarn(`openai-compat: plugin command handling failed: ${String(err)}`);
+  }
+  if (pluginCommandText) {
+    if (!stream) {
+      sendJson(res, 200, {
+        id: runId,
+        object: "chat.completion",
+        created: Math.floor(Date.now() / 1000),
+        model,
+        choices: [
+          {
+            index: 0,
+            message: { role: "assistant", content: pluginCommandText },
+            finish_reason: "stop",
+          },
+        ],
+        usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+      });
+      return true;
+    }
+
+    setSseHeaders(res);
+    writeAssistantRoleChunk(res, { runId, model });
+    writeAssistantContentChunk(res, {
+      runId,
+      model,
+      content: pluginCommandText,
+      finishReason: null,
+    });
+    writeDone(res);
+    res.end();
+    return true;
+  }
 
   if (!stream) {
     try {
